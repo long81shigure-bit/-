@@ -1,0 +1,559 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>ホワサバ ステーション管理</title>
+
+<style>
+
+body{
+margin:0;
+padding:16px;
+font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+background:#f4f6f9;
+}
+
+.container{
+max-width:700px;
+margin:auto;
+}
+
+h1{
+text-align:center;
+margin-bottom:20px;
+}
+
+.topButtons{
+display:flex;
+gap:10px;
+margin-bottom:20px;
+}
+
+.topButtons button{
+flex:1;
+}
+
+button{
+border:none;
+border-radius:12px;
+padding:14px;
+font-size:16px;
+font-weight:bold;
+cursor:pointer;
+}
+
+.reset{
+background:#ff5252;
+color:white;
+}
+
+.station{
+background:white;
+padding:18px;
+border-radius:18px;
+margin-bottom:14px;
+box-shadow:0 3px 8px rgba(0,0,0,0.1);
+}
+
+.warning{
+border:3px solid #f5b400;
+}
+
+.danger{
+border:3px solid #ff5252;
+background:#fff2f2;
+}
+
+.station h3{
+margin-top:0;
+}
+
+input{
+width:100%;
+box-sizing:border-box;
+padding:12px;
+margin:10px 0;
+border-radius:10px;
+border:1px solid #ddd;
+font-size:16px;
+}
+
+.rowButtons{
+display:flex;
+gap:8px;
+margin-top:10px;
+}
+
+.rowButtons button{
+flex:1;
+}
+
+.updateBtn{
+background:#4caf50;
+color:white;
+}
+
+.editBtn{
+background:#2196f3;
+color:white;
+}
+
+.small{
+font-size:14px;
+color:#666;
+margin-top:8px;
+}
+
+.remaining{
+font-size:18px;
+font-weight:bold;
+margin-top:10px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>🏢ホワサバ ステーション管理</h1>
+
+<div class="topButtons">
+
+<button
+class="reset"
+onclick="resetAll()">
+
+🗑全データ削除
+
+</button>
+
+</div>
+
+<div id="list"></div>
+
+</div>
+
+<script>
+
+const stationNames=[
+
+"建築ステ1",
+
+"技術ステ1",
+
+"採取ステ1",
+
+"生産ステ1",
+
+"訓練ステ2",
+
+"武器ステ2",
+
+"防御ステ2",
+
+"遠征ステ3",
+
+"建築ステ3",
+
+"技術ステ3",
+
+"武器ステ4",
+
+"防御ステ4"
+
+];
+
+let stations=
+
+JSON.parse(
+
+localStorage.getItem("wsStations")
+
+);
+
+if(!stations){
+
+stations=stationNames.map(
+
+name=>({
+
+name,
+
+nextUpdate:null
+
+})
+
+);
+
+}
+
+function save(){
+
+localStorage.setItem(
+
+"wsStations",
+
+JSON.stringify(stations)
+
+);
+
+}
+
+function resetAll(){
+
+if(
+
+!confirm(
+
+"全て削除しますか？"
+
+)
+
+)return;
+
+localStorage.removeItem(
+
+"wsStations"
+
+);
+
+location.reload();
+
+}
+
+function formatDate(date){
+
+return date.toLocaleString(
+
+"ja-JP",
+
+{
+
+month:"2-digit",
+
+day:"2-digit",
+
+hour:"2-digit",
+
+minute:"2-digit"
+
+}
+
+);
+
+}
+
+function getRemaining(date){
+
+const now=new Date();
+
+const diff=date-now;
+
+if(diff<=0){
+
+return "🔴更新時間です";
+
+}
+
+const days=Math.floor(
+
+diff/86400000
+
+);
+
+const hours=Math.floor(
+
+(diff%86400000)
+
+/3600000
+
+);
+
+const mins=Math.floor(
+
+(diff%3600000)
+
+/60000
+
+);
+
+return `⌛${days}日 ${hours}時間 ${mins}分`;
+
+}
+
+function editDate(index){
+
+const value=
+
+document.getElementById(
+
+"date"+index
+
+).value;
+
+if(!value){
+
+alert(
+
+"日時を入力してください"
+
+);
+
+return;
+
+}
+
+const date=
+
+new Date(value);
+
+date.setDate(
+
+date.getDate()+3
+
+);
+
+stations[index]
+
+.nextUpdate=date;
+
+save();
+
+render();
+
+}
+
+function updateNow(index){
+
+const date=
+
+new Date();
+
+date.setDate(
+
+date.getDate()+3
+
+);
+
+stations[index]
+
+.nextUpdate=date;
+
+save();
+
+render();
+
+}
+
+function render(){
+
+const sorted=[
+
+...stations
+
+].sort(
+
+(a,b)=>{
+
+if(!a.nextUpdate)
+
+return 1;
+
+if(!b.nextUpdate)
+
+return -1;
+
+return new Date(
+
+a.nextUpdate
+
+)-
+
+new Date(
+
+b.nextUpdate
+
+);
+
+}
+
+);
+
+const list=
+
+document.getElementById(
+
+"list"
+
+);
+
+list.innerHTML="";
+
+sorted.forEach(
+
+station=>{
+
+const realIndex=
+
+stations.findIndex(
+
+s=>s.name===station.name
+
+);
+
+let state="";
+
+if(station.nextUpdate){
+
+const diff=
+
+new Date(
+
+station.nextUpdate
+
+)-
+
+new Date();
+
+if(diff<=0){
+
+state="danger";
+
+}else if(
+
+diff<=86400000
+
+){
+
+state="warning";
+
+}
+
+}
+
+list.innerHTML+=`
+
+<div class="station ${state}">
+
+<h3>
+
+🏢${station.name}
+
+</h3>
+
+${
+station.nextUpdate?
+
+`
+
+<div class="small">
+
+⏰次回更新
+
+<br>
+
+${formatDate(
+
+new Date(
+
+station.nextUpdate
+
+)
+
+)}
+
+</div>
+
+<div class="remaining">
+
+${getRemaining(
+
+new Date(
+
+station.nextUpdate
+
+)
+
+)}
+
+</div>
+
+`
+
+:
+
+`
+
+<div class="small">
+
+未設定
+
+</div>
+
+`
+
+}
+
+<input
+
+type="datetime-local"
+
+id="date${realIndex}"
+
+>
+
+<div class="rowButtons">
+
+<button
+
+class="editBtn"
+
+onclick=
+
+"editDate(${realIndex})">
+
+✏️日時設定
+
+</button>
+
+<button
+
+class="updateBtn"
+
+onclick=
+
+"updateNow(${realIndex})">
+
+🔄更新完了
+
+</button>
+
+</div>
+
+</div>
+
+`;
+
+});
+
+}
+
+render();
+
+setInterval(
+
+render,
+
+60000
+
+);
+
+</script>
+
+</body>
+</html>
