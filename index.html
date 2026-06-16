@@ -1,0 +1,390 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WSSM Ver2</title>
+
+<style>
+body{
+margin:0;
+font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+background:#f4f6f8;
+padding:16px;
+}
+
+h1{text-align:center;margin:0;}
+.subtitle{text-align:center;color:#666;margin:8px 0 20px;}
+
+.todayBox,.topBox,.card{
+background:#fff;
+border-radius:18px;
+padding:16px;
+margin-bottom:14px;
+box-shadow:0 4px 10px rgba(0,0,0,.08);
+}
+
+.todayItem{
+padding:8px 0;
+border-bottom:1px solid #eee;
+}
+
+.stationHeader{
+display:flex;
+justify-content:space-between;
+align-items:center;
+font-size:18px;
+font-weight:bold;
+cursor:pointer;
+}
+
+.stationContent{
+display:none;
+margin-top:12px;
+}
+
+.stationContent.open{
+display:block;
+}
+
+.info{
+margin:6px 0;
+}
+
+input{
+width:100%;
+box-sizing:border-box;
+padding:12px;
+font-size:16px;
+border-radius:12px;
+border:1px solid #ccc;
+margin-top:8px;
+}
+
+button{
+width:100%;
+padding:12px;
+font-size:16px;
+font-weight:bold;
+border:none;
+border-radius:12px;
+margin-top:8px;
+cursor:pointer;
+}
+
+.green{background:#3fb950;color:#fff;}
+.blue{background:#2f81f7;color:#fff;}
+.red{background:#ff5b5b;color:#fff;}
+.gray{background:#777;color:#fff;}
+
+.warning{
+border:3px solid #ffc107;
+}
+
+.danger{
+border:3px solid #ff5b5b;
+background:#fff1f1;
+}
+
+.lastTouch{
+border:3px solid #64b5f6;
+}
+
+.small{
+font-size:13px;
+color:#666;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🏢WSSM Ver2</h1>
+<div class="subtitle">Whiteout Survival Station Manager</div>
+
+<div class="todayBox">
+<h3>🔥本日更新</h3>
+<div id="today"></div>
+</div>
+
+<div class="topBox">
+<button class="red" onclick="resetAll()">🗑️全データ削除</button>
+</div>
+
+<div id="stations"></div>
+
+<script>
+
+const master=[
+"🏗️建築ステ1",
+"🔬技術ステ1",
+"⛏️採取ステ1",
+"🏭生産ステ1",
+"🎖️訓練ステ2",
+"🗡️武器ステ2",
+"🛡️防御ステ2",
+"🧭遠征ステ3",
+"🏗️建築ステ3",
+"🔬技術ステ3",
+"🗡️武器ステ4",
+"🛡️防御ステ4"
+];
+
+let data=JSON.parse(localStorage.getItem("wssm2"));
+
+if(!data){
+data=master.map(name=>({
+name,
+capture:null,
+next:null,
+lastTouched:0
+}));
+}
+
+function save(){
+localStorage.setItem("wssm2",JSON.stringify(data));
+}
+
+function resetAll(){
+if(!confirm("全削除しますか？")) return;
+
+localStorage.removeItem("wssm2");
+location.reload();
+}
+
+function parseTime(text){
+
+text=text.trim().replace(/\s+/g," ");
+
+let days=0;
+let time=text;
+
+if(text.includes("d")){
+const parts=text.split("d");
+days=parseInt(parts[0])||0;
+time=(parts[1]||"").trim();
+}
+
+const nums=time.split(":");
+
+if(nums.length!==3) return null;
+
+const h=parseInt(nums[0]);
+const m=parseInt(nums[1]);
+const s=parseInt(nums[2]);
+
+if([h,m,s].some(isNaN)) return null;
+
+return (((days*24+h)*60+m)*60+s)*1000;
+}
+
+function register(index){
+
+const value=document.getElementById("input"+index).value;
+
+const ms=parseTime(value);
+
+if(ms===null){
+alert("22:57:46 または 1d 19:45:42 形式で入力してください");
+return;
+}
+
+const capture=new Date(Date.now()+ms);
+
+const next=new Date(capture);
+next.setDate(next.getDate()+3);
+
+data[index].capture=capture;
+data[index].next=next;
+data[index].lastTouched=Date.now();
+
+save();
+render();
+}
+
+function updateDone(index){
+
+if(!data[index].next) return;
+
+const next=new Date(data[index].next);
+next.setDate(next.getDate()+3);
+
+data[index].capture=new Date(data[index].next);
+data[index].next=next;
+data[index].lastTouched=Date.now();
+
+save();
+render();
+}
+
+function resetOne(index){
+
+if(!confirm("このステーションをリセットしますか？")) return;
+
+data[index]={
+name:data[index].name,
+capture:null,
+next:null,
+lastTouched:0
+};
+
+save();
+render();
+}
+
+function remain(date){
+
+const diff=new Date(date)-new Date();
+
+if(diff<=0){
+return "🔴更新時間";
+}
+
+const d=Math.floor(diff/86400000);
+const h=Math.floor((diff%86400000)/3600000);
+const m=Math.floor((diff%3600000)/60000);
+
+return d+"日 "+h+"時間 "+m+"分";
+}
+
+function format(date){
+
+return new Date(date).toLocaleString("ja-JP",{
+month:"2-digit",
+day:"2-digit",
+hour:"2-digit",
+minute:"2-digit"
+});
+}
+
+function renderToday(){
+
+const area=document.getElementById("today");
+
+const today=[];
+
+data.forEach(s=>{
+
+if(!s.next) return;
+
+const d=new Date(s.next);
+
+const now=new Date();
+
+if(
+d.getFullYear()===now.getFullYear() &&
+d.getMonth()===now.getMonth() &&
+d.getDate()===now.getDate()
+){
+today.push(s);
+}
+
+});
+
+if(today.length===0){
+area.innerHTML="今日はありません🥳";
+return;
+}
+
+area.innerHTML=today.map(x=>
+`<div class="todayItem">${x.name}<br>⏰${format(x.next)}</div>`
+).join("");
+}
+
+function render(){
+
+renderToday();
+
+const list=document.getElementById("stations");
+
+const sorted=[...data].sort((a,b)=>{
+
+if(a.lastTouched!==b.lastTouched){
+return b.lastTouched-a.lastTouched;
+}
+
+if(!a.next) return 1;
+if(!b.next) return -1;
+
+return new Date(a.next)-new Date(b.next);
+
+});
+
+list.innerHTML="";
+
+sorted.forEach(st=>{
+
+const real=data.findIndex(x=>x.name===st.name);
+
+let cls="card";
+
+if(st.lastTouched>0){
+cls+=" lastTouch";
+}
+
+if(st.next){
+
+const diff=new Date(st.next)-new Date();
+
+if(diff<=0){
+cls+=" danger";
+}else if(diff<=86400000){
+cls+=" warning";
+}
+
+}
+
+list.innerHTML+=`
+
+<div class="${cls}">
+
+<div class="stationHeader"
+onclick="document.getElementById('content${real}').classList.toggle('open')">
+
+<span>${st.name}</span>
+
+<span>▼</span>
+
+</div>
+
+<div class="stationContent" id="content${real}">
+
+${st.capture?`
+
+<div class="info">⏰占領可能<br>${format(st.capture)}</div>
+
+<div class="info">📅次回更新<br>${format(st.next)}</div>
+
+<div class="info">⌛${remain(st.next)}</div>
+
+<div class="small">🕒最終更新 ${format(st.lastTouched)}</div>
+
+`:`<div class="info">未設定</div>`}
+
+<input id="input${real}" placeholder="22:57:46 または 1d 19:45:42">
+
+<button class="green" onclick="register(${real})">🧮残り時間から登録</button>
+
+<button class="blue" onclick="updateDone(${real})">🔄更新完了</button>
+
+<button class="gray" onclick="resetOne(${real})">🗑️リセット</button>
+
+</div>
+
+</div>
+
+`;
+
+});
+
+}
+
+render();
+
+setInterval(render,60000);
+
+</script>
+
+</body>
+</html>
